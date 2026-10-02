@@ -1,74 +1,97 @@
 package translation;
 
 import javax.swing.*;
-import java.awt.event.*;
+import javax.swing.event.ListSelectionEvent;
+import javax.swing.event.ListSelectionListener;
+import java.awt.event.ActionEvent;
+import java.awt.event.ActionListener;
+import java.util.List;
 
-
-// TODO Task D: Update the GUI for the program to align with UI shown in the README example.
-//            Currently, the program only uses the CanadaTranslator and the user has
-//            to manually enter the language code they want to use for the translation.
-//            See the examples package for some code snippets that may be useful when updating
-//            the GUI.
 public class GUI {
 
     public static void main(String[] args) {
         SwingUtilities.invokeLater(() -> {
-            JPanel countryPanel = new JPanel();
-            JTextField countryField = new JTextField(10);
-            countryField.setText("can");
-            countryField.setEditable(false); // we only support the "can" country code for now
-            countryPanel.add(new JLabel("Country:"));
-            countryPanel.add(countryField);
+            // ① 准备好翻译器和两个转换器
+            Translator translator = new JSONTranslator();
+            LanguageCodeConverter languageConverter = new LanguageCodeConverter();
+            CountryCodeConverter countryConverter = new CountryCodeConverter();
 
+            // ② 第一行：语言下拉菜单
             JPanel languagePanel = new JPanel();
-            JTextField languageField = new JTextField(10);
             languagePanel.add(new JLabel("Language:"));
-            languagePanel.add(languageField);
+            JComboBox<String> languageComboBox = new JComboBox<>();
+            for (String code : translator.getLanguageCodes()) {
+                languageComboBox.addItem(languageConverter.fromLanguageCode(code));
+            }
+            languagePanel.add(languageComboBox);
 
-            JPanel buttonPanel = new JPanel();
-            JButton submit = new JButton("Submit");
-            buttonPanel.add(submit);
+            // ③ 第二行：显示翻译结果
+            JPanel resultPanel = new JPanel();
+            resultPanel.add(new JLabel("Translation:"));
+            JLabel resultLabel = new JLabel(" ");
+            resultPanel.add(resultLabel);
 
-            JLabel resultLabelText = new JLabel("Translation:");
-            buttonPanel.add(resultLabelText);
-            JLabel resultLabel = new JLabel("\t\t\t\t\t\t\t");
-            buttonPanel.add(resultLabel);
+            // ④ 第三块：可滚动的国家列表
+            List<String> countryCodes = translator.getCountryCodes();
+            String[] countryNames = new String[countryCodes.size()];
+            for (int i = 0; i < countryCodes.size(); i++) {
+                countryNames[i] = countryConverter.fromCountryCode(countryCodes.get(i));
+            }
+            JList<String> countryList = new JList<>(countryNames);
+            countryList.setSelectionMode(ListSelectionModel.SINGLE_SELECTION);
+            JScrollPane scrollPane = new JScrollPane(countryList);
 
-
-            // adding listener for when the user clicks the submit button
-            submit.addActionListener(new ActionListener() {
+            // ⑤ 监听器：换了语言或者换了国家，都重新翻译一次
+            languageComboBox.addActionListener(new ActionListener() {
                 @Override
                 public void actionPerformed(ActionEvent e) {
-                    String language = languageField.getText();
-                    String country = countryField.getText();
-
-                    // for now, just using our simple translator, but
-                    // we'll need to use the real JSON version later.
-                    Translator translator = new CanadaTranslator();
-
-                    String result = translator.translate(country, language);
-                    if (result == null) {
-                        result = "no translation found!";
-                    }
-                    resultLabel.setText(result);
-
+                    updateTranslation(languageComboBox, countryList, resultLabel,
+                        translator, languageConverter, countryConverter);
                 }
-
+            });
+            countryList.addListSelectionListener(new ListSelectionListener() {
+                @Override
+                public void valueChanged(ListSelectionEvent e) {
+                    updateTranslation(languageComboBox, countryList, resultLabel,
+                        translator, languageConverter, countryConverter);
+                }
             });
 
+            // ⑥ 大柜子竖着排，放进窗口
             JPanel mainPanel = new JPanel();
             mainPanel.setLayout(new BoxLayout(mainPanel, BoxLayout.Y_AXIS));
-            mainPanel.add(countryPanel);
             mainPanel.add(languagePanel);
-            mainPanel.add(buttonPanel);
+            mainPanel.add(resultPanel);
+            mainPanel.add(scrollPane);
 
             JFrame frame = new JFrame("Country Name Translator");
             frame.setContentPane(mainPanel);
             frame.setDefaultCloseOperation(JFrame.EXIT_ON_CLOSE);
             frame.pack();
             frame.setVisible(true);
-
-
         });
+    }
+
+    /**
+     * Read the current selections, translate, and show the result.
+     */
+    private static void updateTranslation(JComboBox<String> languageComboBox,
+                                          JList<String> countryList,
+                                          JLabel resultLabel,
+                                          Translator translator,
+                                          LanguageCodeConverter languageConverter,
+                                          CountryCodeConverter countryConverter) {
+        String languageName = (String) languageComboBox.getSelectedItem();
+        String countryName = countryList.getSelectedValue();
+        if (languageName == null || countryName == null) {
+            return;   // 还没选完，先不翻译
+        }
+        String languageCode = languageConverter.fromLanguage(languageName);
+        String countryCode = countryConverter.fromCountry(countryName);
+        String result = translator.translate(countryCode, languageCode);
+        if (result == null) {
+            result = "no translation found!";
+        }
+        resultLabel.setText(result);
     }
 }
